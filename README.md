@@ -25,11 +25,11 @@ await server.listen(Deno.listen({ hostname: "localhost", port: 18800 }));
 ```typescript
 import { Client } from "https://deno.land/x/msgpack_rpc/client.ts";
 
-const client = new Client(
-  await Deno.connect({ hostname: "localhost", port: 18800 })
-);
-const result = await client.call("sum", [1, 1]);
+const conn = await Deno.connect({ hostname: "localhost", port: 18800 });
+const client = new Client(conn);
+const result = await client.call("sum", 1, 1);
 console.log(result);
+conn.close();
 ```
 
 ## License

@@ -18,23 +18,27 @@ export class Server {
     const stream = Deno.iter(conn);
     for await (const data of decodeStream(stream)) {
       if (!Array.isArray(data)) {
-        console.warn(`Unexpected data ${data} received`);
+        console.warn(`Unexpected data received: ${data}`);
         continue;
       }
       const message = decodeMessage(data);
       switch (message.type) {
         case 0:
           this.handle_request(conn, message);
+          break;
         case 1:
-          console.warn(`Unexpected message type ${message.type} received`);
+          console.warn(
+            `Unexpected message received: ${JSON.stringify(message)}`
+          );
           continue;
         case 2:
           this.handle_notification(message);
+          break;
       }
     }
   }
 
-  private async dispatch(method: string, params: any[]): Promise<any> {
+  private async dispatch(method: string, ...params: any): Promise<any> {
     return await this.dispatcher[method].apply(null, params);
   }
 
@@ -48,7 +52,7 @@ export class Server {
           encodeMessage({
             type: 1,
             msgid: request.msgid,
-            result: await this.dispatch(request.method, request.params),
+            result: await this.dispatch(request.method, ...request.params),
           })
         )
       );

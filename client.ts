@@ -26,18 +26,26 @@ export class Client {
 
   private async start_listener(): Promise<void> {
     const stream = Deno.iter(this.conn);
-    for await (const data of decodeStream(stream)) {
-      if (!Array.isArray(data)) {
-        console.warn(`Unexpected data ${data} received`);
-        continue;
+    try {
+      for await (const data of decodeStream(stream)) {
+        if (!Array.isArray(data)) {
+          console.warn(`Unexpected data ${data} received`);
+          continue;
+        }
+        const message = decodeMessage(data);
+        if (message.type !== 1) {
+          console.warn(`Unexpected message type ${message.type} received`);
+          continue;
+        }
+        const reply = this.get_or_create_reply(message.msgid);
+        reply.resolve(message);
       }
-      const message = decodeMessage(data);
-      if (message.type !== 1) {
-        console.warn(`Unexpected message type ${message.type} received`);
-        continue;
+    } catch (e) {
+      if (e instanceof Deno.errors.BadResource) {
+        // Connection is closed
+        return;
       }
-      const reply = this.get_or_create_reply(message.msgid);
-      reply.resolve(message);
+      throw e;
     }
   }
 
@@ -64,7 +72,7 @@ export class Client {
     }
   }
 
-  async call(method: string, params: any[]): Promise<any> {
+  async call(method: string, ...params: any): Promise<any> {
     const msgid = this.get_next_index();
     const m: Request = {
       type: 0,
@@ -81,7 +89,7 @@ export class Client {
     return response.result;
   }
 
-  async notify(method: string, params: any[]): Promise<void> {
+  async notify(method: string, ...params: any): Promise<void> {
     const m: Notification = {
       type: 2,
       method,
