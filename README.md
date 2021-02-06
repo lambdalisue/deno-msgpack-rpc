@@ -10,7 +10,7 @@
 ### Server
 
 ```typescript
-import { Server } from "https://deno.land/x/msgpack_rpc@v1.1/server.ts";
+import { Server } from "https://deno.land/x/msgpack_rpc/server.ts";
 
 const server = new Server({
   async sum(x: number, y: number): Promise<number> {
@@ -23,7 +23,7 @@ await server.listen(Deno.listen({ hostname: "localhost", port: 18800 }));
 ### Client
 
 ```typescript
-import { Client } from "https://deno.land/x/msgpack_rpc@v1.1/client.ts";
+import { Client } from "https://deno.land/x/msgpack_rpc/client.ts";
 
 const client = new Client(
   await Deno.connect({ hostname: "localhost", port: 18800 })
