@@ -14,8 +14,10 @@ export interface Dispatcher {
 export class Server {
   constructor(private dispatcher: Dispatcher) {}
 
-  private async handle_connection(conn: Deno.Conn): Promise<void> {
-    const stream = Deno.iter(conn);
+  private async handle_connection(
+    transport: Deno.Reader & Deno.Writer
+  ): Promise<void> {
+    const stream = Deno.iter(transport);
     for await (const data of decodeStream(stream)) {
       if (!Array.isArray(data)) {
         console.warn(`Unexpected data received: ${data}`);
@@ -24,7 +26,7 @@ export class Server {
       const message = decodeMessage(data);
       switch (message.type) {
         case 0:
-          this.handle_request(conn, message);
+          this.handle_request(transport, message);
           break;
         case 1:
           console.warn(
@@ -43,11 +45,11 @@ export class Server {
   }
 
   private async handle_request(
-    conn: Deno.Conn,
+    transport: Deno.Reader & Deno.Writer,
     request: Request
   ): Promise<void> {
     try {
-      await conn.write(
+      await transport.write(
         encode(
           encodeMessage({
             type: 1,
@@ -58,7 +60,7 @@ export class Server {
       );
     } catch (error) {
       console.error(error);
-      await conn.write(
+      await transport.write(
         encode(
           encodeMessage({
             type: 1,

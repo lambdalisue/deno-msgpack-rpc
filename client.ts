@@ -17,7 +17,7 @@ export class Client {
   private counter: number;
   private replies: { [key: number]: Deferred<Response> };
 
-  constructor(private conn: Deno.Conn) {
+  constructor(private transport: Deno.Reader & Deno.Writer) {
     this.counter = -1;
     this.replies = {};
     // Start listener which will stop when conn is closed
@@ -25,7 +25,7 @@ export class Client {
   }
 
   private async start_listener(): Promise<void> {
-    const stream = Deno.iter(this.conn);
+    const stream = Deno.iter(this.transport);
     try {
       for await (const data of decodeStream(stream)) {
         if (!Array.isArray(data)) {
@@ -64,7 +64,7 @@ export class Client {
 
   private async send(data: Uint8Array): Promise<void> {
     while (true) {
-      const n = await this.conn.write(data);
+      const n = await this.transport.write(data);
       if (n === data.byteLength) {
         break;
       }
