@@ -13,7 +13,7 @@
 ### Server
 
 ```typescript
-import { Server, Dispatcher } from "../server.ts";
+import { Server, Dispatcher } from "https://deno.land/x/msgpack_rpc/server.ts";
 
 const hostname = "localhost";
 const port = 18800;
@@ -41,7 +41,7 @@ for await (const listener of Deno.listen({
 ### Client
 
 ```typescript
-import { Client } from "../client.ts";
+import { Client } from "https://deno.land/x/msgpack_rpc/client.ts";
 
 const hostname = "localhost";
 const port = 18800;
