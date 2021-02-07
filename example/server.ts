@@ -1,8 +1,23 @@
-import { Server } from "../server.ts";
+import { Server, Dispatcher } from "../server.ts";
 
-const server = new Server({
+const hostname = "localhost";
+const port = 18800;
+
+const dispatcher: Dispatcher = {
   async sum(x: number, y: number): Promise<number> {
     return x + y;
   },
-});
-await server.listen(Deno.listen({ hostname: "localhost", port: 18800 }));
+};
+
+const server = new Server(dispatcher);
+
+for await (const listener of Deno.listen({
+  hostname,
+  port,
+})) {
+  console.log("Client has connected");
+  server
+    .start(listener)
+    .then(() => console.log("Client has disconnected"))
+    .catch((e) => console.error(e));
+}
