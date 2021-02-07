@@ -13,11 +13,17 @@ import {
 
 const MSGID_THRESHOLD = 2 ** 32;
 
+/**
+ * MessagePack-RPC Client
+ */
 export class Client {
   private counter: number;
   private replies: { [key: number]: Deferred<Response> };
 
-  constructor(private conn: Deno.Conn) {
+  /**
+   * Constructor
+   */
+  constructor(private transport: Deno.Reader & Deno.Writer) {
     this.counter = -1;
     this.replies = {};
     // Start listener which will stop when conn is closed
@@ -25,7 +31,7 @@ export class Client {
   }
 
   private async start_listener(): Promise<void> {
-    const stream = Deno.iter(this.conn);
+    const stream = Deno.iter(this.transport);
     try {
       for await (const data of decodeStream(stream)) {
         if (!Array.isArray(data)) {
@@ -64,7 +70,7 @@ export class Client {
 
   private async send(data: Uint8Array): Promise<void> {
     while (true) {
-      const n = await this.conn.write(data);
+      const n = await this.transport.write(data);
       if (n === data.byteLength) {
         break;
       }
@@ -72,6 +78,10 @@ export class Client {
     }
   }
 
+  /**
+   * Call a method with params and return a Promise which resolves when a response message
+   * has received and to the result value of the method.
+   */
   async call(method: string, ...params: any): Promise<any> {
     const msgid = this.get_next_index();
     const m: Request = {
@@ -89,6 +99,9 @@ export class Client {
     return response.result;
   }
 
+  /**
+   * Notify a method with params and return a Promise which resolves when the message has sent.
+   */
   async notify(method: string, ...params: any): Promise<void> {
     const m: Notification = {
       type: 2,

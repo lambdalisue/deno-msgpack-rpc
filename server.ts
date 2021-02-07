@@ -7,47 +7,29 @@ import {
   Notification,
 } from "./message.ts";
 
+/**
+ * Method dispatcher
+ */
 export interface Dispatcher {
   [key: string]: (...args: any) => Promise<any>;
 }
 
+/**
+ * MessagePack-RPC Server
+ */
 export class Server {
   constructor(private dispatcher: Dispatcher) {}
-
-  private async handle_connection(conn: Deno.Conn): Promise<void> {
-    const stream = Deno.iter(conn);
-    for await (const data of decodeStream(stream)) {
-      if (!Array.isArray(data)) {
-        console.warn(`Unexpected data received: ${data}`);
-        continue;
-      }
-      const message = decodeMessage(data);
-      switch (message.type) {
-        case 0:
-          this.handle_request(conn, message);
-          break;
-        case 1:
-          console.warn(
-            `Unexpected message received: ${JSON.stringify(message)}`
-          );
-          continue;
-        case 2:
-          this.handle_notification(message);
-          break;
-      }
-    }
-  }
 
   private async dispatch(method: string, ...params: any): Promise<any> {
     return await this.dispatcher[method].apply(null, params);
   }
 
   private async handle_request(
-    conn: Deno.Conn,
+    transport: Deno.Reader & Deno.Writer,
     request: Request
   ): Promise<void> {
     try {
-      await conn.write(
+      await transport.write(
         encode(
           encodeMessage({
             type: 1,
@@ -58,7 +40,7 @@ export class Server {
       );
     } catch (error) {
       console.error(error);
-      await conn.write(
+      await transport.write(
         encode(
           encodeMessage({
             type: 1,
@@ -78,9 +60,30 @@ export class Server {
     }
   }
 
-  async listen(listener: Deno.Listener): Promise<void> {
-    for await (const conn of listener) {
-      this.handle_connection(conn);
+  /**
+   * Start MessagePack-RPC on the transport
+   */
+  async start(transport: Deno.Reader & Deno.Writer): Promise<void> {
+    const stream = Deno.iter(transport);
+    for await (const data of decodeStream(stream)) {
+      if (!Array.isArray(data)) {
+        console.warn(`Unexpected data received: ${data}`);
+        continue;
+      }
+      const message = decodeMessage(data);
+      switch (message.type) {
+        case 0:
+          this.handle_request(transport, message);
+          break;
+        case 1:
+          console.warn(
+            `Unexpected message received: ${JSON.stringify(message)}`
+          );
+          continue;
+        case 2:
+          this.handle_notification(message);
+          break;
+      }
     }
   }
 }
