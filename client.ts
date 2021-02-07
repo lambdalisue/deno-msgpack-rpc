@@ -13,10 +13,16 @@ import {
 
 const MSGID_THRESHOLD = 2 ** 32;
 
+/**
+ * MessagePack-RPC Client
+ */
 export class Client {
   private counter: number;
   private replies: { [key: number]: Deferred<Response> };
 
+  /**
+   * Constructor
+   */
   constructor(private transport: Deno.Reader & Deno.Writer) {
     this.counter = -1;
     this.replies = {};
@@ -72,6 +78,10 @@ export class Client {
     }
   }
 
+  /**
+   * Call a method with params and return a Promise which resolves when a response message
+   * has received and to the result value of the method.
+   */
   async call(method: string, ...params: any): Promise<any> {
     const msgid = this.get_next_index();
     const m: Request = {
@@ -89,6 +99,9 @@ export class Client {
     return response.result;
   }
 
+  /**
+   * Notify a method with params and return a Promise which resolves when the message has sent.
+   */
   async notify(method: string, ...params: any): Promise<void> {
     const m: Notification = {
       type: 2,

@@ -7,10 +7,16 @@ import {
   Notification,
 } from "./message.ts";
 
+/**
+ * Method dispatcher
+ */
 export interface Dispatcher {
   [key: string]: (...args: any) => Promise<any>;
 }
 
+/**
+ * MessagePack-RPC Server
+ */
 export class Server {
   constructor(private dispatcher: Dispatcher) {}
 
@@ -54,6 +60,9 @@ export class Server {
     }
   }
 
+  /**
+   * Start MessagePack-RPC on the transport
+   */
   async start(transport: Deno.Reader & Deno.Writer): Promise<void> {
     const stream = Deno.iter(transport);
     for await (const data of decodeStream(stream)) {
