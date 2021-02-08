@@ -13,7 +13,7 @@
 ### Server
 
 ```typescript
-import { Server, Dispatcher } from "https://deno.land/x/msgpack_rpc/server.ts";
+import { Session, Dispatcher } from "https://deno.land/x/msgpack_rpc/mod.ts";
 
 const hostname = "localhost";
 const port = 18800;
@@ -22,39 +22,62 @@ const dispatcher: Dispatcher = {
   async sum(x: number, y: number): Promise<number> {
     return x + y;
   },
+
+  async hello_server(name: string): Promise<string> {
+    return `Hello ${name}, this is server`;
+  },
+
+  async hello_client(name: string): Promise<string> {
+    // NOTE: 'this' is an instance of Session
+    return this.call("hello_client", name);
+  },
 };
 
-const server = new Server(dispatcher);
-
-for await (const listener of Deno.listen({
+for await (const conn of Deno.listen({
   hostname,
   port,
 })) {
-  console.log("Client has connected");
+  console.log("Session has connected");
+  const server = new Session(conn, dispatcher);
   server
-    .start(listener)
+    .listen()
     .then(() => console.log("Client has disconnected"))
     .catch((e) => console.error(e));
+  console.log(await server.call("hello_server", "Alice"));
+  console.log(await server.call("hello_client", "Alice"));
 }
 ```
 
 ### Client
 
 ```typescript
-import { Client } from "https://deno.land/x/msgpack_rpc/client.ts";
+import { Session, Dispatcher } from "https://deno.land/x/msgpack_rpc/mod.ts";
 
 const hostname = "localhost";
 const port = 18800;
 
+const dispatcher: Dispatcher = {
+  async hello_server(name: string): Promise<string> {
+    // NOTE: 'this' is an instance of Session
+    return this.call("hello_server", name);
+  },
+
+  async hello_client(name: string): Promise<string> {
+    return `Hello ${name}, this is client`;
+  },
+};
+
 try {
   console.log(`Connect to MessagePack-RPC server (${hostname}:${port})`);
   const conn = await Deno.connect({ hostname, port });
-
-  console.log(`Call 'sum' with [1, 1]`);
-  const client = new Client(conn);
-  const result = await client.call("sum", 1, 1);
-  console.log(result);
-
+  const client = new Session(conn, dispatcher);
+  client
+    .listen()
+    .then(() => console.log("Session has disconnected"))
+    .catch((e) => console.error(e));
+  console.log(await client.call("sum", 1, 1));
+  console.log(await client.call("hello_server", "Bob"));
+  console.log(await client.call("hello_client", "Bob"));
   console.log(`Close connection`);
   conn.close();
 } catch (e) {
