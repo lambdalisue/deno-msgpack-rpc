@@ -1,6 +1,7 @@
 # msgpack-rpc-deno
 
 [![deno doc](https://doc.deno.land/badge.svg)](https://doc.deno.land/https/deno.land/x/msgpack_rpc/mod.ts)
+[![Test](https://github.com/lambdalisue/msgpack-rpc-deno/workflows/Test/badge.svg)](https://github.com/lambdalisue/msgpack-rpc-deno/actions?query=workflow%3ATest)
 
 [Deno][deno] module to support [msgpack-rpc][msgpack-rpc] by using
 [msgpack-deno][msgpack-deno].
