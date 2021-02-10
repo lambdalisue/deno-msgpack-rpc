@@ -1,15 +1,10 @@
-import { encode, decodeStream } from "https://deno.land/x/msgpack@v1.2/mod.ts";
+import { decodeStream, encode } from "https://deno.land/x/msgpack@v1.2/mod.ts";
 import {
   Deferred,
   deferred,
 } from "https://deno.land/x/std@0.86.0/async/deferred.ts";
-import {
-  encode as encodeMessage,
-  decode as decodeMessage,
-  Request,
-  Response,
-  Notification,
-} from "./message.ts";
+import * as message from "./message.ts";
+import { Transporter } from "./transporter.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
 
@@ -17,43 +12,46 @@ const MSGID_THRESHOLD = 2 ** 32;
  * Method dispatcher
  */
 export interface Dispatcher {
-  [key: string]: (this: Session, ...args: any) => Promise<any>;
+  [key: string]: (this: Session, ...args: unknown[]) => Promise<unknown>;
 }
 
 /**
  * MessagePack-RPC Session
  */
 export class Session {
-  private counter: number;
-  private replies: { [key: number]: Deferred<Response> };
+  #counter: number;
+  #replies: { [key: number]: Deferred<message.ResponseMessage> };
+  #transporter: Transporter;
+  #dispatcher: Dispatcher;
 
   /**
    * Constructor
    */
-  constructor(
-    private transport: Deno.Reader & Deno.Writer,
-    private dispatcher: Dispatcher = {}
-  ) {
-    this.counter = -1;
-    this.replies = {};
+  constructor(transporter: Transporter, dispatcher: Dispatcher = {}) {
+    this.#counter = -1;
+    this.#replies = {};
+    this.#transporter = transporter;
+    this.#dispatcher = dispatcher;
   }
 
-  protected get_or_create_reply(msgid: number): Deferred<Response> {
-    this.replies[msgid] = this.replies[msgid] || deferred();
-    return this.replies[msgid];
+  protected getOrCreateReply(
+    msgid: message.MessageId,
+  ): Deferred<message.ResponseMessage> {
+    this.#replies[msgid] = this.#replies[msgid] || deferred();
+    return this.#replies[msgid];
   }
 
-  private get_next_index(): number {
-    this.counter += 1;
-    if (this.counter >= MSGID_THRESHOLD) {
-      this.counter = 0;
+  private getNextIndex(): number {
+    this.#counter += 1;
+    if (this.#counter >= MSGID_THRESHOLD) {
+      this.#counter = 0;
     }
-    return this.counter;
+    return this.#counter;
   }
 
   private async send(data: Uint8Array): Promise<void> {
     while (true) {
-      const n = await this.transport.write(data);
+      const n = await this.#transporter.write(data);
       if (n === data.byteLength) {
         break;
       }
@@ -61,41 +59,35 @@ export class Session {
     }
   }
 
-  private async dispatch(method: string, ...params: any): Promise<any> {
-    return await this.dispatcher[method].apply(this, params);
+  private async dispatch(
+    method: string,
+    ...params: unknown[]
+  ): Promise<unknown> {
+    return await this.#dispatcher[method].apply(this, params);
   }
 
-  private async handle_request(
-    transport: Deno.Reader & Deno.Writer,
-    request: Request
+  private async handleRequest(request: message.RequestMessage): Promise<void> {
+    const [_, msgid, method, params] = request;
+    const [result, error] = await (async () => {
+      let result: message.MessageResult = null;
+      let error: message.MessageError = null;
+      try {
+        result = await this.dispatch(method, ...params);
+      } catch (e) {
+        error = e;
+      }
+      return [result, error];
+    })();
+    const response: message.ResponseMessage = [1, msgid, error, result];
+    await this.#transporter.write(encode(response));
+  }
+
+  private async handleNotification(
+    notification: message.NotificationMessage,
   ): Promise<void> {
+    const [_, method, params] = notification;
     try {
-      await transport.write(
-        encode(
-          encodeMessage({
-            type: 1,
-            msgid: request.msgid,
-            result: await this.dispatch(request.method, ...request.params),
-          })
-        )
-      );
-    } catch (error) {
-      console.error(error);
-      await transport.write(
-        encode(
-          encodeMessage({
-            type: 1,
-            msgid: request.msgid,
-            error,
-          })
-        )
-      );
-    }
-  }
-
-  private async handle_notification(request: Notification): Promise<void> {
-    try {
-      await this.dispatch(request.method, request.params);
+      await this.dispatch(method, ...params);
     } catch (error) {
       console.error(error);
     }
@@ -106,25 +98,19 @@ export class Session {
    * This method must be called to start session.
    */
   async listen(): Promise<void> {
-    const stream = Deno.iter(this.transport);
+    const stream = Deno.iter(this.#transporter);
     try {
       for await (const data of decodeStream(stream)) {
-        if (!Array.isArray(data)) {
+        if (message.isRequestMessage(data)) {
+          this.handleRequest(data);
+        } else if (message.isResponseMessage(data)) {
+          const reply = this.getOrCreateReply(data[1]);
+          reply.resolve(data);
+        } else if (message.isNotificationMessage(data)) {
+          this.handleNotification(data);
+        } else {
           console.warn(`Unexpected data received: ${data}`);
           continue;
-        }
-        const message = decodeMessage(data);
-        switch (message.type) {
-          case 0:
-            this.handle_request(this.transport, message);
-            break;
-          case 1:
-            const reply = this.get_or_create_reply(message.msgid);
-            reply.resolve(message);
-            break;
-          case 2:
-            this.handle_notification(message);
-            break;
         }
       }
     } catch (e) {
@@ -140,32 +126,25 @@ export class Session {
    * Call a method with params and return a Promise which resolves when a response message
    * has received and to the result value of the method.
    */
-  async call(method: string, ...params: any): Promise<any> {
-    const msgid = this.get_next_index();
-    const m: Request = {
-      type: 0,
-      msgid,
-      method,
-      params,
-    };
-    await this.send(encode(encodeMessage(m)));
-    const response = await this.get_or_create_reply(msgid);
-    delete this.replies[msgid];
-    if (response.error) {
-      return Promise.reject(response.error);
+  async call(method: string, ...params: unknown[]): Promise<unknown> {
+    const msgid = this.getNextIndex();
+    const data: message.RequestMessage = [0, msgid, method, params];
+    await this.send(encode(data));
+    const [_1, _2, error, result] = await this.getOrCreateReply(msgid);
+    delete this.#replies[msgid];
+    if (error) {
+      throw new Error(
+        `Failed to call '${method}' with ${JSON.stringify(params)}: ${error}`,
+      );
     }
-    return response.result;
+    return result;
   }
 
   /**
    * Notify a method with params and return a Promise which resolves when the message has sent.
    */
-  async notify(method: string, ...params: any): Promise<void> {
-    const m: Notification = {
-      type: 2,
-      method,
-      params,
-    };
-    await this.send(encode(encodeMessage(m)));
+  async notify(method: string, ...params: unknown[]): Promise<void> {
+    const data: message.NotificationMessage = [2, method, params];
+    await this.send(encode(data));
   }
 }
