@@ -4,9 +4,13 @@ import {
   deferred,
 } from "https://deno.land/x/std@0.86.0/async/deferred.ts";
 import * as message from "./message.ts";
-import { Transporter } from "./transporter.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
+
+/**
+ * Transporter which transport Uint8Array
+ */
+export type Transporter = Deno.Reader & Deno.Closer & Deno.Writer;
 
 /**
  * Method dispatcher
