@@ -8,11 +8,6 @@ import * as message from "./message.ts";
 const MSGID_THRESHOLD = 2 ** 32;
 
 /**
- * Transporter which transport Uint8Array
- */
-export type Transporter = Deno.Reader & Deno.Closer & Deno.Writer;
-
-/**
  * Method dispatcher
  */
 export interface Dispatcher {
@@ -25,16 +20,19 @@ export interface Dispatcher {
 export class Session {
   #counter: number;
   #replies: { [key: number]: Deferred<message.ResponseMessage> };
-  #transporter: Transporter;
+  #reader: Deno.Reader & Deno.Closer;
+  #writer: Deno.Writer;
   #dispatcher: Dispatcher;
 
-  /**
-   * Constructor
-   */
-  constructor(transporter: Transporter, dispatcher: Dispatcher = {}) {
+  constructor(
+    reader: Deno.Reader & Deno.Closer,
+    writer: Deno.Writer,
+    dispatcher: Dispatcher = {},
+  ) {
     this.#counter = -1;
     this.#replies = {};
-    this.#transporter = transporter;
+    this.#reader = reader;
+    this.#writer = writer;
     this.#dispatcher = dispatcher;
   }
 
@@ -55,7 +53,7 @@ export class Session {
 
   private async send(data: Uint8Array): Promise<void> {
     while (true) {
-      const n = await this.#transporter.write(data);
+      const n = await this.#writer.write(data);
       if (n === data.byteLength) {
         break;
       }
@@ -83,7 +81,7 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await this.#transporter.write(encode(response));
+    await this.#writer.write(encode(response));
   }
 
   private async handleNotification(
@@ -102,7 +100,7 @@ export class Session {
    * This method must be called to start session.
    */
   async listen(): Promise<void> {
-    const stream = Deno.iter(this.#transporter);
+    const stream = Deno.iter(this.#reader);
     try {
       for await (const data of decodeStream(stream)) {
         if (message.isRequestMessage(data)) {

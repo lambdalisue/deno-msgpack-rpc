@@ -28,7 +28,7 @@ for await (
   })
 ) {
   console.log("Session has connected");
-  const server = new Session(conn, dispatcher);
+  const server = new Session(conn, conn, dispatcher);
   server
     .listen()
     .then(() => console.log("Client has disconnected"))

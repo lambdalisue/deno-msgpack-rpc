@@ -45,7 +45,7 @@ for await (
   })
 ) {
   console.log("Session has connected");
-  const server = new Session(conn, dispatcher);
+  const server = new Session(conn, conn, dispatcher);
   server
     .listen()
     .then(() => console.log("Client has disconnected"))
@@ -77,7 +77,7 @@ const dispatcher: Dispatcher = {
 try {
   console.log(`Connect to MessagePack-RPC server (${hostname}:${port})`);
   const conn = await Deno.connect({ hostname, port });
-  const client = new Session(conn, dispatcher);
+  const client = new Session(conn, conn, dispatcher);
   client
     .listen()
     .then(() => console.log("Session has disconnected"))
