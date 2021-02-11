@@ -15,7 +15,7 @@
 ### Server
 
 ```typescript
-import { Dispatcher, Session } from "../mod.ts";
+import { Dispatcher, Session } from "https://deno.land/x/msgpack_rpc/mod.ts";
 
 const hostname = "localhost";
 const port = 18800;
@@ -58,7 +58,7 @@ for await (
 ### Client
 
 ```typescript
-import { Dispatcher, Session } from "../mod.ts";
+import { Dispatcher, Session } from "https://deno.land/x/msgpack_rpc/mod.ts";
 
 const hostname = "localhost";
 const port = 18800;
