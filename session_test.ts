@@ -1,7 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.86.0/testing/asserts.ts";
-import { sleep } from "https://deno.land/x/sleep/mod.ts";
-import { Dispatcher, Session } from "./session.ts";
-import { createTransporter } from "./mod.ts";
+import { delay } from "https://deno.land/std/async/mod.ts";
+import { Session } from "./session.ts";
+import { createTransporter } from "./utils.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
   #queue: Uint8Array[];
@@ -23,7 +23,7 @@ class Reader implements Deno.Reader, Deno.Closer {
         p.set(v);
         return v.length;
       }
-      await sleep(0.001);
+      await delay(1);
     }
     return null;
   }

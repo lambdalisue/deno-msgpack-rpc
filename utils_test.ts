@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.86.0/testing/asserts.ts";
-import { createTransporter } from "./transporter.ts";
+import { createTransporter } from "./utils.ts";
 
 Deno.test(
   "createTransporter create a new transporter from reader and writer",

@@ -1,7 +1,4 @@
-/**
- * Transporter which transport Uint8Array
- */
-export type Transporter = Deno.Reader & Deno.Closer & Deno.Writer;
+import { Transporter } from "./session.ts";
 
 /**
  * Create new transporer from reader and writer
