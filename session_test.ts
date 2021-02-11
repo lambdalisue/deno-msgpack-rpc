@@ -1,7 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.86.0/testing/asserts.ts";
 import { delay } from "https://deno.land/std/async/mod.ts";
 import { Session } from "./session.ts";
-import { createTransporter } from "./utils.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
   #queue: Uint8Array[];
@@ -47,10 +46,10 @@ Deno.test("Local can call Remote method", async () => {
   const r2l: Uint8Array[] = []; // Remote to Local
   const lr = new Reader(r2l);
   const lw = new Writer(l2r);
-  const local = new Session(createTransporter(lr, lw));
+  const local = new Session(lr, lw);
   const rr = new Reader(l2r);
   const rw = new Writer(r2l);
-  const remote = new Session(createTransporter(rr, rw), {
+  const remote = new Session(rr, rw, {
     say(name: unknown): Promise<unknown> {
       return Promise.resolve(`Hello ${name} from Remote`);
     },
@@ -71,14 +70,14 @@ Deno.test("Remote can call Local method", async () => {
   const r2l: Uint8Array[] = []; // Remote to Local
   const lr = new Reader(r2l);
   const lw = new Writer(l2r);
-  const local = new Session(createTransporter(lr, lw), {
+  const local = new Session(lr, lw, {
     say(name: unknown): Promise<unknown> {
       return Promise.resolve(`Hello ${name} from Local`);
     },
   });
   const rr = new Reader(l2r);
   const rw = new Writer(r2l);
-  const remote = new Session(createTransporter(rr, rw));
+  const remote = new Session(rr, rw);
   const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await remote.call("say", "John Titor"),
@@ -95,14 +94,14 @@ Deno.test("Local can call Local method through Remote method", async () => {
   const r2l: Uint8Array[] = []; // Remote to Local
   const lr = new Reader(r2l);
   const lw = new Writer(l2r);
-  const local = new Session(createTransporter(lr, lw), {
+  const local = new Session(lr, lw, {
     say(name: unknown): Promise<unknown> {
       return Promise.resolve(`Hello ${name} from Local`);
     },
   });
   const rr = new Reader(l2r);
   const rw = new Writer(r2l);
-  const remote = new Session(createTransporter(rr, rw), {
+  const remote = new Session(rr, rw, {
     say(name: unknown): Promise<unknown> {
       return this.call("say", `Hello ${name} from Remote`);
     },
@@ -123,14 +122,14 @@ Deno.test("Remote can call Remote method through Local method", async () => {
   const r2l: Uint8Array[] = []; // Remote to Local
   const lr = new Reader(r2l);
   const lw = new Writer(l2r);
-  const local = new Session(createTransporter(lr, lw), {
+  const local = new Session(lr, lw, {
     say(name: unknown): Promise<unknown> {
       return this.call("say", `Hello ${name} from Local`);
     },
   });
   const rr = new Reader(l2r);
   const rw = new Writer(r2l);
-  const remote = new Session(createTransporter(rr, rw), {
+  const remote = new Session(rr, rw, {
     say(name: unknown): Promise<unknown> {
       return Promise.resolve(`Hello ${name} from Remote`);
     },
