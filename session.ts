@@ -90,8 +90,8 @@ export class Session {
     const [_, method, params] = notification;
     try {
       await this.dispatch(method, ...params);
-    } catch (error) {
-      console.error(error);
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -148,5 +148,22 @@ export class Session {
   async notify(method: string, ...params: unknown[]): Promise<void> {
     const data: message.NotificationMessage = [2, method, params];
     await this.send(encode(data));
+  }
+
+  /**
+   * Clear an internal dispatcher
+   */
+  clearDispatcher(): void {
+    this.#dispatcher = {};
+  }
+
+  /**
+   * Extend an internal dispatcher
+   */
+  extendDispatcher(dispatcher: Dispatcher): void {
+    this.#dispatcher = {
+      ...this.#dispatcher,
+      ...dispatcher,
+    };
   }
 }
