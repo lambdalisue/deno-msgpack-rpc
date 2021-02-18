@@ -65,6 +65,12 @@ export class Session {
     method: string,
     ...params: unknown[]
   ): Promise<unknown> {
+    if (!Object.prototype.hasOwnProperty.call(this.#dispatcher, method)) {
+      const propertyNames = Object.getOwnPropertyNames(this.#dispatcher);
+      throw new Error(
+        `No method '${method}' exists in ${JSON.stringify(propertyNames)}`,
+      );
+    }
     return await this.#dispatcher[method].apply(this, params);
   }
 
