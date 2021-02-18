@@ -76,7 +76,8 @@ export class Session {
       try {
         result = await this.dispatch(method, ...params);
       } catch (e) {
-        error = e;
+        // Use string representation to send the error through msgpack
+        error = e.stack ?? e.toString();
       }
       return [result, error];
     })();
@@ -132,11 +133,13 @@ export class Session {
     const msgid = this.getNextIndex();
     const data: message.RequestMessage = [0, msgid, method, params];
     await this.send(encode(data));
-    const [_1, _2, error, result] = await this.getOrCreateReply(msgid);
+    const [err, result] = (await this.getOrCreateReply(msgid)).slice(2);
     delete this.#replies[msgid];
-    if (error) {
+    if (err) {
+      const paramsStr = JSON.stringify(params);
+      const errStr = typeof err === "string" ? err : JSON.stringify(err);
       throw new Error(
-        `Failed to call '${method}' with ${JSON.stringify(params)}: ${error}`,
+        `Failed to call '${method}' with ${paramsStr}: ${errStr}`,
       );
     }
     return result;
