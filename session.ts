@@ -15,6 +15,15 @@ export interface Dispatcher {
 }
 
 /**
+ * Create Dispatcher from type annotated object T
+ */
+export type DispatcherFrom<T> = {
+  [K in keyof T]: T[K] extends (...args: infer Args) => unknown
+    ? (...args: { [K in keyof Args]: unknown }) => Promise<unknown>
+    : never;
+};
+
+/**
  * MessagePack-RPC Session
  */
 export class Session {
