@@ -61,13 +61,7 @@ export class Session {
   }
 
   private async send(data: Uint8Array): Promise<void> {
-    while (true) {
-      const n = await this.#writer.write(data);
-      if (n === data.byteLength) {
-        break;
-      }
-      data = data.slice(n);
-    }
+    await Deno.writeAll(this.#writer, data);
   }
 
   private async dispatch(
@@ -97,7 +91,7 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await this.#writer.write(encode(response));
+    await Deno.writeAll(this.#writer, encode(response));
   }
 
   private async handleNotification(
