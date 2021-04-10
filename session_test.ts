@@ -175,3 +175,28 @@ Deno.test("Remote can call Remote method through Local method", async () => {
   rr.close();
   await Promise.all(listeners);
 });
+
+Deno.test("Local can receive Remote massive data", async () => {
+  const massiveData = buildMassiveData();
+  const l2r: Uint8Array[] = []; // Local to Remote
+  const r2l: Uint8Array[] = []; // Remote to Local
+  const lr = new Reader(r2l);
+  const lw = new Writer(l2r);
+  const local = new Session(lr, lw);
+  const rr = new Reader(l2r);
+  const rw = new Writer(r2l);
+  const remote = new Session(rr, rw, {
+    say(): Promise<unknown> {
+      return Promise.resolve(massiveData);
+    },
+  });
+  const listeners = [local.listen(), remote.listen()];
+  assertEquals(
+    await local.call("say"),
+    massiveData,
+  );
+  // Close
+  lr.close();
+  rr.close();
+  await Promise.all(listeners);
+});
