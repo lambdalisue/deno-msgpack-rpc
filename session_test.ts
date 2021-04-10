@@ -1,5 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.86.0/testing/asserts.ts";
-import { delay } from "https://deno.land/std/async/mod.ts";
+import { assertEquals, delay } from "./deps_test.ts";
 import { Session } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {

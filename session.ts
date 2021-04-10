@@ -1,8 +1,4 @@
-import { decodeStream, encode } from "https://deno.land/x/msgpack@v1.2/mod.ts";
-import {
-  Deferred,
-  deferred,
-} from "https://deno.land/x/std@0.86.0/async/deferred.ts";
+import { decodeStream, Deferred, deferred, encode } from "./deps.ts";
 import * as message from "./message.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
