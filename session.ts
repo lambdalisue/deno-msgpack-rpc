@@ -1,8 +1,4 @@
-import { decodeStream, encode } from "https://deno.land/x/msgpack@v1.2/mod.ts";
-import {
-  Deferred,
-  deferred,
-} from "https://deno.land/x/std@0.86.0/async/deferred.ts";
+import { decodeStream, Deferred, deferred, encode } from "./deps.ts";
 import * as message from "./message.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
@@ -61,13 +57,7 @@ export class Session {
   }
 
   private async send(data: Uint8Array): Promise<void> {
-    while (true) {
-      const n = await this.#writer.write(data);
-      if (n === data.byteLength) {
-        break;
-      }
-      data = data.slice(n);
-    }
+    await Deno.writeAll(this.#writer, data);
   }
 
   private async dispatch(
@@ -97,7 +87,7 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await this.#writer.write(encode(response));
+    await Deno.writeAll(this.#writer, encode(response));
   }
 
   private async handleNotification(

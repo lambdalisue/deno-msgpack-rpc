@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.86.0/testing/asserts.ts";
+import { assertEquals } from "./deps_test.ts";
 import * as message from "./message.ts";
 
 const isRequestMessageTestCases = [
