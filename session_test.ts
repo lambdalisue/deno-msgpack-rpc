@@ -4,10 +4,12 @@ import { Session } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
   #queue: Uint8Array[];
+  #remain: Uint8Array;
   #closed: boolean;
 
   constructor(queue: Uint8Array[]) {
     this.#queue = queue;
+    this.#remain = new Uint8Array();
     this.#closed = false;
   }
 
@@ -16,15 +18,26 @@ class Reader implements Deno.Reader, Deno.Closer {
   }
 
   async read(p: Uint8Array): Promise<number | null> {
-    while (!this.#closed) {
-      const v = this.#queue.pop();
+    if (this.#remain.length) {
+      return this.readFromRemain(p);
+    }
+    while (!this.#closed || this.#queue.length) {
+      const v = this.#queue.shift();
       if (v) {
-        p.set(v);
-        return v.length;
+        this.#remain = v;
+        return this.readFromRemain(p);
       }
       await delay(1);
     }
     return null;
+  }
+
+  private readFromRemain(p: Uint8Array): number {
+    const size = p.byteLength;
+    const head = this.#remain.slice(0, size);
+    this.#remain = this.#remain.slice(size);
+    p.set(head);
+    return head.byteLength;
   }
 }
 
@@ -40,6 +53,24 @@ class Writer implements Deno.Writer {
     return Promise.resolve(p.length);
   }
 }
+
+function buildMassiveData(): string {
+  let data = "";
+  for (let i = 0; i < 10000; i++) {
+    data += ("0000" + String(i)).slice(-4) + ", ";
+  }
+  return data;
+}
+
+Deno.test("Make sure that Reader/Writer for tests works properly", async () => {
+  const q: Uint8Array[] = [];
+  const r = new Reader(q);
+  const w = new Writer(q);
+  const d = (new TextEncoder()).encode(buildMassiveData());
+  await Deno.writeAll(w, d);
+  r.close();
+  assertEquals(await Deno.readAll(r), d);
+});
 
 Deno.test("Local can call Remote method", async () => {
   const l2r: Uint8Array[] = []; // Local to Remote
