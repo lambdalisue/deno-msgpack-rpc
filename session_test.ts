@@ -21,7 +21,7 @@ class Reader implements Deno.Reader, Deno.Closer {
     if (this.#remain.byteLength) {
       return this.readFromRemain(p);
     }
-    while (!this.#closed) {
+    while (!this.#closed || this.#queue.length) {
       const v = this.#queue.pop();
       if (v) {
         this.#remain = v;
@@ -53,6 +53,21 @@ class Writer implements Deno.Writer {
     return Promise.resolve(p.length);
   }
 }
+
+Deno.test("Reader/Writer works properly", async () => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode("Hello".repeat(10000));
+  const q: Uint8Array[] = [];
+  const r = new Reader(q);
+  const w = new Writer(q);
+  // Write all
+  await Deno.writeAll(w, data);
+  r.close();
+  // Read all
+  const read = await Deno.readAll(r);
+  assertEquals(read.byteLength, 50000);
+  assertEquals(read, data);
+});
 
 Deno.test("Local can call Remote method", async () => {
   const l2r: Uint8Array[] = []; // Local to Remote
