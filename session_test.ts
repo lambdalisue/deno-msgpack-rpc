@@ -4,10 +4,12 @@ import { Session } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
   #queue: Uint8Array[];
+  #remain: Uint8Array;
   #closed: boolean;
 
   constructor(queue: Uint8Array[]) {
     this.#queue = queue;
+    this.#remain = new Uint8Array();
     this.#closed = false;
   }
 
@@ -16,15 +18,26 @@ class Reader implements Deno.Reader, Deno.Closer {
   }
 
   async read(p: Uint8Array): Promise<number | null> {
+    if (this.#remain.byteLength) {
+      return this.readFromRemain(p);
+    }
     while (!this.#closed) {
       const v = this.#queue.pop();
       if (v) {
-        p.set(v);
-        return v.length;
+        this.#remain = v;
+        return this.readFromRemain(p);
       }
       await delay(1);
     }
     return null;
+  }
+
+  private readFromRemain(p: Uint8Array): number {
+    const threshold = p.byteLength;
+    const head = this.#remain.slice(0, threshold);
+    this.#remain = this.#remain.slice(threshold);
+    p.set(head);
+    return head.byteLength;
   }
 }
 
