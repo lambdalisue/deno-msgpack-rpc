@@ -1,5 +1,6 @@
 export { decodeStream, encode } from "https://deno.land/x/msgpack@v1.3/mod.ts";
-export { deferred } from "https://deno.land/x/std@0.92.0/async/deferred.ts";
+export { deferred } from "https://deno.land/x/std@0.93.0/async/deferred.ts";
+export * as io from "https://deno.land/x/std@0.93.0/io/mod.ts";
 export type {
   Deferred,
-} from "https://deno.land/x/std@0.92.0/async/deferred.ts";
+} from "https://deno.land/x/std@0.93.0/async/deferred.ts";

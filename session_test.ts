@@ -1,3 +1,4 @@
+import { io } from "./deps.ts";
 import { assertEquals, delay } from "./deps_test.ts";
 import { Session } from "./session.ts";
 
@@ -66,9 +67,9 @@ Deno.test("Make sure that Reader/Writer for tests works properly", async () => {
   const r = new Reader(q);
   const w = new Writer(q);
   const d = (new TextEncoder()).encode(buildMassiveData());
-  await Deno.writeAll(w, d);
+  await io.writeAll(w, d);
   r.close();
-  assertEquals(await Deno.readAll(r), d);
+  assertEquals(await io.readAll(r), d);
 });
 
 Deno.test("Local can call Remote method", async () => {
