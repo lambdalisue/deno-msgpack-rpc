@@ -1,4 +1,4 @@
-import { decodeStream, Deferred, deferred, encode } from "./deps.ts";
+import { decodeStream, Deferred, deferred, encode, io } from "./deps.ts";
 import * as message from "./message.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
@@ -57,7 +57,7 @@ export class Session {
   }
 
   private async send(data: Uint8Array): Promise<void> {
-    await Deno.writeAll(this.#writer, data);
+    await io.writeAll(this.#writer, data);
   }
 
   private async dispatch(
@@ -87,7 +87,7 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await Deno.writeAll(this.#writer, encode(response));
+    await io.writeAll(this.#writer, encode(response));
   }
 
   private async handleNotification(
@@ -106,7 +106,7 @@ export class Session {
    * This method must be called to start session.
    */
   async listen(): Promise<void> {
-    const stream = Deno.iter(this.#reader);
+    const stream = io.iter(this.#reader);
     try {
       for await (const data of decodeStream(stream)) {
         if (message.isRequestMessage(data)) {
