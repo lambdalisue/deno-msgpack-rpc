@@ -27,18 +27,22 @@ export class Session {
   #replies: { [key: number]: Deferred<message.ResponseMessage> };
   #reader: Deno.Reader & Deno.Closer;
   #writer: Deno.Writer;
-  #dispatcher: Dispatcher;
+
+  /**
+   * API name and method map which is used to dispatch API request
+   */
+  dispatcher: Dispatcher;
 
   constructor(
     reader: Deno.Reader & Deno.Closer,
     writer: Deno.Writer,
     dispatcher: Dispatcher = {},
   ) {
+    this.dispatcher = dispatcher;
     this.#counter = -1;
     this.#replies = {};
     this.#reader = reader;
     this.#writer = writer;
-    this.#dispatcher = dispatcher;
   }
 
   protected getOrCreateReply(
@@ -64,13 +68,13 @@ export class Session {
     method: string,
     ...params: unknown[]
   ): Promise<unknown> {
-    if (!Object.prototype.hasOwnProperty.call(this.#dispatcher, method)) {
-      const propertyNames = Object.getOwnPropertyNames(this.#dispatcher);
+    if (!Object.prototype.hasOwnProperty.call(this.dispatcher, method)) {
+      const propertyNames = Object.getOwnPropertyNames(this.dispatcher);
       throw new Error(
         `No method '${method}' exists in ${JSON.stringify(propertyNames)}`,
       );
     }
-    return await this.#dispatcher[method].apply(this, params);
+    return await this.dispatcher[method].apply(this, params);
   }
 
   private async handleRequest(request: message.RequestMessage): Promise<void> {
@@ -160,17 +164,21 @@ export class Session {
 
   /**
    * Clear an internal dispatcher
+   *
+   * @Deprecated Use `dispatcher` directly
    */
   clearDispatcher(): void {
-    this.#dispatcher = {};
+    this.dispatcher = {};
   }
 
   /**
    * Extend an internal dispatcher
+   *
+   * @Deprecated Use `dispatcher` directly
    */
   extendDispatcher(dispatcher: Dispatcher): void {
-    this.#dispatcher = {
-      ...this.#dispatcher,
+    this.dispatcher = {
+      ...this.dispatcher,
       ...dispatcher,
     };
   }
