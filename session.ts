@@ -1,5 +1,14 @@
-import { decodeStream, Deferred, deferred, encode, io } from "./deps.ts";
+import {
+  decodeStream,
+  Deferred,
+  deferred,
+  Disposable,
+  encode,
+  io,
+} from "./deps.ts";
 import * as message from "./message.ts";
+import { Indexer } from "./indexer.ts";
+import { ResponseWaiter } from "./response_waiter.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
 
@@ -20,40 +29,48 @@ export type DispatcherFrom<T> = {
 };
 
 /**
+ * Session options
+ */
+export type SessionOptions = {
+  /**
+   * Response timeout in milliseconds
+   */
+  responseTimeout?: number;
+};
+
+/**
  * MessagePack-RPC Session
  */
-export class Session {
-  #counter: number;
-  #replies: { [key: number]: Deferred<message.ResponseMessage> };
+export class Session implements Disposable {
+  #indexer: Indexer;
+  #waiter: ResponseWaiter;
   #reader: Deno.Reader & Deno.Closer;
   #writer: Deno.Writer;
-  #dispatcher: Dispatcher;
+  #listener: Promise<void>;
+  #closed: boolean;
+  #closedSignal: Deferred<never>;
+
+  /**
+   * API name and method map which is used to dispatch API request
+   */
+  dispatcher: Dispatcher;
 
   constructor(
     reader: Deno.Reader & Deno.Closer,
     writer: Deno.Writer,
     dispatcher: Dispatcher = {},
+    options: SessionOptions = {},
   ) {
-    this.#counter = -1;
-    this.#replies = {};
+    this.dispatcher = dispatcher;
+    this.#indexer = new Indexer(MSGID_THRESHOLD);
+    this.#waiter = new ResponseWaiter(options.responseTimeout);
     this.#reader = reader;
     this.#writer = writer;
-    this.#dispatcher = dispatcher;
-  }
-
-  protected getOrCreateReply(
-    msgid: message.MessageId,
-  ): Deferred<message.ResponseMessage> {
-    this.#replies[msgid] = this.#replies[msgid] || deferred();
-    return this.#replies[msgid];
-  }
-
-  private getNextIndex(): number {
-    this.#counter += 1;
-    if (this.#counter >= MSGID_THRESHOLD) {
-      this.#counter = 0;
-    }
-    return this.#counter;
+    this.#closed = false;
+    this.#closedSignal = deferred();
+    this.#listener = this.listen().catch((e) => {
+      console.error(`Unexpected error occured: ${e}`);
+    });
   }
 
   private async send(data: Uint8Array): Promise<void> {
@@ -64,13 +81,13 @@ export class Session {
     method: string,
     ...params: unknown[]
   ): Promise<unknown> {
-    if (!Object.prototype.hasOwnProperty.call(this.#dispatcher, method)) {
-      const propertyNames = Object.getOwnPropertyNames(this.#dispatcher);
+    if (!Object.prototype.hasOwnProperty.call(this.dispatcher, method)) {
+      const propertyNames = Object.getOwnPropertyNames(this.dispatcher);
       throw new Error(
         `No method '${method}' exists in ${JSON.stringify(propertyNames)}`,
       );
     }
-    return await this.#dispatcher[method].apply(this, params);
+    return await this.dispatcher[method].apply(this, params);
   }
 
   private async handleRequest(request: message.RequestMessage): Promise<void> {
@@ -87,7 +104,13 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await io.writeAll(this.#writer, encode(response));
+    await this.send(encode(response));
+  }
+
+  private handleResponse(response: message.ResponseMessage): void {
+    if (!this.#waiter.provide(response)) {
+      console.warn("Unexpected response message received", response);
+    }
   }
 
   private async handleNotification(
@@ -101,27 +124,32 @@ export class Session {
     }
   }
 
-  /**
-   * Listen messages and handle request/response/notification.
-   * This method must be called to start session.
-   */
-  async listen(): Promise<void> {
-    const stream = io.iter(this.#reader);
+  private async listen(): Promise<void> {
+    const iter = decodeStream(io.iter(this.#reader));
     try {
-      for await (const data of decodeStream(stream)) {
-        if (message.isRequestMessage(data)) {
-          this.handleRequest(data);
-        } else if (message.isResponseMessage(data)) {
-          const reply = this.getOrCreateReply(data[1]);
-          reply.resolve(data);
-        } else if (message.isNotificationMessage(data)) {
-          this.handleNotification(data);
+      while (!this.#closed) {
+        const { done, value } = await Promise.race([
+          this.#closedSignal,
+          iter.next(),
+        ]);
+        if (done) {
+          return;
+        }
+        if (message.isRequestMessage(value)) {
+          this.handleRequest(value);
+        } else if (message.isResponseMessage(value)) {
+          this.handleResponse(value);
+        } else if (message.isNotificationMessage(value)) {
+          this.handleNotification(value);
         } else {
-          console.warn(`Unexpected data received: ${data}`);
+          console.warn(`Unexpected data received: ${value}`);
           continue;
         }
       }
     } catch (e) {
+      if (e instanceof SessionClosedError) {
+        return;
+      }
       // https://github.com/denoland/deno/issues/5194#issuecomment-631987928
       if (e instanceof Deno.errors.BadResource) {
         return;
@@ -130,16 +158,40 @@ export class Session {
     }
   }
 
+  dispose() {
+    this.close();
+  }
+
+  /**
+   * Close this session
+   */
+  close(): void {
+    this.#closed = true;
+    this.#closedSignal.reject(new SessionClosedError());
+  }
+
+  /**
+   * Wait until the session is closed
+   */
+  waitClosed(): Promise<void> {
+    return this.#listener;
+  }
+
   /**
    * Call a method with params and return a Promise which resolves when a response message
    * has received and to the result value of the method.
    */
   async call(method: string, ...params: unknown[]): Promise<unknown> {
-    const msgid = this.getNextIndex();
+    if (this.#closed) {
+      throw new SessionClosedError();
+    }
+    const msgid = this.#indexer.next();
     const data: message.RequestMessage = [0, msgid, method, params];
-    await this.send(encode(data));
-    const [err, result] = (await this.getOrCreateReply(msgid)).slice(2);
-    delete this.#replies[msgid];
+    const [_, response] = await Promise.race([
+      this.#closedSignal,
+      Promise.all([this.send(encode(data)), this.#waiter.wait(msgid)]),
+    ]);
+    const [err, result] = response.slice(2);
     if (err) {
       const paramsStr = JSON.stringify(params);
       const errStr = typeof err === "string" ? err : JSON.stringify(err);
@@ -154,24 +206,41 @@ export class Session {
    * Notify a method with params and return a Promise which resolves when the message has sent.
    */
   async notify(method: string, ...params: unknown[]): Promise<void> {
+    if (this.#closed) {
+      throw new SessionClosedError();
+    }
     const data: message.NotificationMessage = [2, method, params];
-    await this.send(encode(data));
+    await Promise.race([this.#closedSignal, this.send(encode(data))]);
   }
 
   /**
    * Clear an internal dispatcher
+   *
+   * @Deprecated Use `dispatcher` directly
    */
   clearDispatcher(): void {
-    this.#dispatcher = {};
+    this.dispatcher = {};
   }
 
   /**
    * Extend an internal dispatcher
+   *
+   * @Deprecated Use `dispatcher` directly
    */
   extendDispatcher(dispatcher: Dispatcher): void {
-    this.#dispatcher = {
-      ...this.#dispatcher,
+    this.dispatcher = {
+      ...this.dispatcher,
       ...dispatcher,
     };
+  }
+}
+
+/**
+ * An error indicates that the session is closed
+ */
+export class SessionClosedError extends Error {
+  constructor() {
+    super("The session is closed");
+    this.name = "SessionClosedError";
   }
 }
