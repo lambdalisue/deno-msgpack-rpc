@@ -91,7 +91,7 @@ export class Session {
       return [result, error];
     })();
     const response: message.ResponseMessage = [1, msgid, error, result];
-    await io.writeAll(this.#writer, encode(response));
+    await this.send(encode(response));
   }
 
   private async handleNotification(
