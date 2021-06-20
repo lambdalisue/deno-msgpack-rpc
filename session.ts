@@ -1,5 +1,6 @@
 import { decodeStream, Deferred, deferred, encode, io } from "./deps.ts";
 import * as message from "./message.ts";
+import { Indexer } from "./indexer.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
 
@@ -23,7 +24,7 @@ export type DispatcherFrom<T> = {
  * MessagePack-RPC Session
  */
 export class Session {
-  #counter: number;
+  #indexer: Indexer;
   #replies: { [key: number]: Deferred<message.ResponseMessage> };
   #reader: Deno.Reader & Deno.Closer;
   #writer: Deno.Writer;
@@ -39,7 +40,7 @@ export class Session {
     dispatcher: Dispatcher = {},
   ) {
     this.dispatcher = dispatcher;
-    this.#counter = -1;
+    this.#indexer = new Indexer(MSGID_THRESHOLD);
     this.#replies = {};
     this.#reader = reader;
     this.#writer = writer;
@@ -50,14 +51,6 @@ export class Session {
   ): Deferred<message.ResponseMessage> {
     this.#replies[msgid] = this.#replies[msgid] || deferred();
     return this.#replies[msgid];
-  }
-
-  private getNextIndex(): number {
-    this.#counter += 1;
-    if (this.#counter >= MSGID_THRESHOLD) {
-      this.#counter = 0;
-    }
-    return this.#counter;
   }
 
   private async send(data: Uint8Array): Promise<void> {
@@ -139,7 +132,7 @@ export class Session {
    * has received and to the result value of the method.
    */
   async call(method: string, ...params: unknown[]): Promise<unknown> {
-    const msgid = this.getNextIndex();
+    const msgid = this.#indexer.next();
     const data: message.RequestMessage = [0, msgid, method, params];
     await this.send(encode(data));
     const [err, result] = (await this.getOrCreateReply(msgid)).slice(2);
