@@ -1,6 +1,6 @@
 import { io } from "./deps.ts";
-import { assertEquals, delay } from "./deps_test.ts";
-import { Session } from "./session.ts";
+import { assertEquals, assertThrowsAsync, delay } from "./deps_test.ts";
+import { Session, SessionClosedError } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
   #queue: Uint8Array[];
@@ -85,7 +85,6 @@ Deno.test("Local can call Remote method", async () => {
       return Promise.resolve(`Hello ${name} from Remote`);
     },
   });
-  const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await local.call("say", "John Titor"),
     "Hello John Titor from Remote",
@@ -93,7 +92,10 @@ Deno.test("Local can call Remote method", async () => {
   // Close
   lr.close();
   rr.close();
-  await Promise.all(listeners);
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
 });
 
 Deno.test("Remote can call Local method", async () => {
@@ -109,7 +111,6 @@ Deno.test("Remote can call Local method", async () => {
   const rr = new Reader(l2r);
   const rw = new Writer(r2l);
   const remote = new Session(rr, rw);
-  const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await remote.call("say", "John Titor"),
     "Hello John Titor from Local",
@@ -117,7 +118,10 @@ Deno.test("Remote can call Local method", async () => {
   // Close
   lr.close();
   rr.close();
-  await Promise.all(listeners);
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
 });
 
 Deno.test("Local can call Local method through Remote method", async () => {
@@ -137,7 +141,6 @@ Deno.test("Local can call Local method through Remote method", async () => {
       return this.call("say", `Hello ${name} from Remote`);
     },
   });
-  const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await local.call("say", "John Titor"),
     "Hello Hello John Titor from Remote from Local",
@@ -145,7 +148,10 @@ Deno.test("Local can call Local method through Remote method", async () => {
   // Close
   lr.close();
   rr.close();
-  await Promise.all(listeners);
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
 });
 
 Deno.test("Remote can call Remote method through Local method", async () => {
@@ -165,7 +171,6 @@ Deno.test("Remote can call Remote method through Local method", async () => {
       return Promise.resolve(`Hello ${name} from Remote`);
     },
   });
-  const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await remote.call("say", "John Titor"),
     "Hello Hello John Titor from Local from Remote",
@@ -173,7 +178,10 @@ Deno.test("Remote can call Remote method through Local method", async () => {
   // Close
   lr.close();
   rr.close();
-  await Promise.all(listeners);
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
 });
 
 Deno.test("Local can receive Remote massive data", async () => {
@@ -190,7 +198,6 @@ Deno.test("Local can receive Remote massive data", async () => {
       return Promise.resolve(massiveData);
     },
   });
-  const listeners = [local.listen(), remote.listen()];
   assertEquals(
     await local.call("say"),
     massiveData,
@@ -198,5 +205,34 @@ Deno.test("Local can receive Remote massive data", async () => {
   // Close
   lr.close();
   rr.close();
-  await Promise.all(listeners);
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
+});
+
+Deno.test("Session.call() throws SessionClosedError if the session has closed", async () => {
+  const buffer: Uint8Array[] = [];
+  const reader = new Reader(buffer);
+  const writer = new Writer(buffer);
+  const session = new Session(reader, writer);
+  session.close();
+  await assertThrowsAsync(async () => {
+    await session.call("say");
+  }, SessionClosedError);
+  reader.close();
+  await session.waitClosed();
+});
+
+Deno.test("Session.notify() throws SessionClosedError if the session has closed", async () => {
+  const buffer: Uint8Array[] = [];
+  const reader = new Reader(buffer);
+  const writer = new Writer(buffer);
+  const session = new Session(reader, writer);
+  session.close();
+  await assertThrowsAsync(async () => {
+    await session.notify("say");
+  }, SessionClosedError);
+  reader.close();
+  await session.waitClosed();
 });
