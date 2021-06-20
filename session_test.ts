@@ -1,5 +1,5 @@
 import { io } from "./deps.ts";
-import { assertEquals, assertThrowsAsync, delay } from "./deps_test.ts";
+import { assertEquals, assertThrowsAsync, delay, using } from "./deps_test.ts";
 import { Session, SessionClosedError } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
@@ -235,4 +235,35 @@ Deno.test("Session.notify() throws SessionClosedError if the session has closed"
   }, SessionClosedError);
   reader.close();
   await session.waitClosed();
+});
+
+Deno.test("Session is disposable", async () => {
+  const l2r: Uint8Array[] = []; // Local to Remote
+  const r2l: Uint8Array[] = []; // Remote to Local
+  const lr = new Reader(r2l);
+  const lw = new Writer(l2r);
+  const local = new Session(lr, lw);
+  const rr = new Reader(l2r);
+  const rw = new Writer(r2l);
+  const remote = new Session(rr, rw, {
+    say(): Promise<unknown> {
+      return Promise.resolve("Hello");
+    },
+  });
+
+  await using(local, async (local) => {
+    // Session is not closed
+    assertEquals(await local.call("say"), "Hello");
+  });
+  // Session is closed by `dispose`
+  await assertThrowsAsync(async () => {
+    await local.call("say");
+  }, SessionClosedError);
+  // Close
+  lr.close();
+  rr.close();
+  await Promise.all([
+    local.waitClosed(),
+    remote.waitClosed(),
+  ]);
 });

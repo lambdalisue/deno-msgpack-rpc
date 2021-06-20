@@ -1,4 +1,11 @@
-import { decodeStream, Deferred, deferred, encode, io } from "./deps.ts";
+import {
+  decodeStream,
+  Deferred,
+  deferred,
+  Disposable,
+  encode,
+  io,
+} from "./deps.ts";
 import * as message from "./message.ts";
 import { Indexer } from "./indexer.ts";
 import { ResponseWaiter } from "./response_waiter.ts";
@@ -34,7 +41,7 @@ export type SessionOptions = {
 /**
  * MessagePack-RPC Session
  */
-export class Session {
+export class Session implements Disposable {
   #indexer: Indexer;
   #waiter: ResponseWaiter;
   #reader: Deno.Reader & Deno.Closer;
@@ -149,6 +156,10 @@ export class Session {
       }
       throw e;
     }
+  }
+
+  dispose() {
+    this.close();
   }
 
   /**
