@@ -1,6 +1,7 @@
-import { decodeStream, Deferred, deferred, encode, io } from "./deps.ts";
+import { decodeStream, encode, io } from "./deps.ts";
 import * as message from "./message.ts";
 import { Indexer } from "./indexer.ts";
+import { ResponseWaiter } from "./response_waiter.ts";
 
 const MSGID_THRESHOLD = 2 ** 32;
 
@@ -21,11 +22,21 @@ export type DispatcherFrom<T> = {
 };
 
 /**
+ * Session options
+ */
+export type SessionOptions = {
+  /**
+   * Response timeout in milliseconds
+   */
+  responseTimeout?: number;
+};
+
+/**
  * MessagePack-RPC Session
  */
 export class Session {
   #indexer: Indexer;
-  #replies: { [key: number]: Deferred<message.ResponseMessage> };
+  #waiter: ResponseWaiter;
   #reader: Deno.Reader & Deno.Closer;
   #writer: Deno.Writer;
 
@@ -38,19 +49,13 @@ export class Session {
     reader: Deno.Reader & Deno.Closer,
     writer: Deno.Writer,
     dispatcher: Dispatcher = {},
+    options: SessionOptions = {},
   ) {
     this.dispatcher = dispatcher;
     this.#indexer = new Indexer(MSGID_THRESHOLD);
-    this.#replies = {};
+    this.#waiter = new ResponseWaiter(options.responseTimeout);
     this.#reader = reader;
     this.#writer = writer;
-  }
-
-  protected getOrCreateReply(
-    msgid: message.MessageId,
-  ): Deferred<message.ResponseMessage> {
-    this.#replies[msgid] = this.#replies[msgid] || deferred();
-    return this.#replies[msgid];
   }
 
   private async send(data: Uint8Array): Promise<void> {
@@ -87,6 +92,12 @@ export class Session {
     await this.send(encode(response));
   }
 
+  private handleResponse(response: message.ResponseMessage): void {
+    if (!this.#waiter.provide(response)) {
+      console.warn("Unexpected response message received", response);
+    }
+  }
+
   private async handleNotification(
     notification: message.NotificationMessage,
   ): Promise<void> {
@@ -109,8 +120,7 @@ export class Session {
         if (message.isRequestMessage(data)) {
           this.handleRequest(data);
         } else if (message.isResponseMessage(data)) {
-          const reply = this.getOrCreateReply(data[1]);
-          reply.resolve(data);
+          this.handleResponse(data);
         } else if (message.isNotificationMessage(data)) {
           this.handleNotification(data);
         } else {
@@ -134,9 +144,11 @@ export class Session {
   async call(method: string, ...params: unknown[]): Promise<unknown> {
     const msgid = this.#indexer.next();
     const data: message.RequestMessage = [0, msgid, method, params];
-    await this.send(encode(data));
-    const [err, result] = (await this.getOrCreateReply(msgid)).slice(2);
-    delete this.#replies[msgid];
+    const [_, response] = await Promise.all([
+      this.send(encode(data)),
+      this.#waiter.wait(msgid),
+    ]);
+    const [err, result] = response.slice(2);
     if (err) {
       const paramsStr = JSON.stringify(params);
       const errStr = typeof err === "string" ? err : JSON.stringify(err);
