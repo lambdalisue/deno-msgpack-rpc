@@ -211,59 +211,72 @@ Deno.test("Local can receive Remote massive data", async () => {
   ]);
 });
 
-Deno.test("Session.call() throws SessionClosedError if the session has closed", async () => {
-  const buffer: Uint8Array[] = [];
-  const reader = new Reader(buffer);
-  const writer = new Writer(buffer);
-  const session = new Session(reader, writer);
-  session.close();
-  await assertThrowsAsync(async () => {
-    await session.call("say");
-  }, SessionClosedError);
-  reader.close();
-  await session.waitClosed();
+Deno.test({
+  name: "Session.call() throws SessionClosedError if the session has closed",
+  fn: async () => {
+    const buffer: Uint8Array[] = [];
+    const reader = new Reader(buffer);
+    const writer = new Writer(buffer);
+    const session = new Session(reader, writer);
+    session.close();
+    await assertThrowsAsync(async () => {
+      await session.call("say");
+    }, SessionClosedError);
+    reader.close();
+    await session.waitClosed();
+  },
+  sanitizeResources: false,
+  sanitizeOps: false,
 });
 
-Deno.test("Session.notify() throws SessionClosedError if the session has closed", async () => {
-  const buffer: Uint8Array[] = [];
-  const reader = new Reader(buffer);
-  const writer = new Writer(buffer);
-  const session = new Session(reader, writer);
-  session.close();
-  await assertThrowsAsync(async () => {
-    await session.notify("say");
-  }, SessionClosedError);
-  reader.close();
-  await session.waitClosed();
+Deno.test({
+  name: "Session.notify() throws SessionClosedError if the session has closed",
+  fn: async () => {
+    const buffer: Uint8Array[] = [];
+    const reader = new Reader(buffer);
+    const writer = new Writer(buffer);
+    const session = new Session(reader, writer);
+    session.close();
+    await assertThrowsAsync(async () => {
+      await session.notify("say");
+    }, SessionClosedError);
+    reader.close();
+    await session.waitClosed();
+  },
+  sanitizeResources: false,
 });
 
-Deno.test("Session is disposable", async () => {
-  const l2r: Uint8Array[] = []; // Local to Remote
-  const r2l: Uint8Array[] = []; // Remote to Local
-  const lr = new Reader(r2l);
-  const lw = new Writer(l2r);
-  const local = new Session(lr, lw);
-  const rr = new Reader(l2r);
-  const rw = new Writer(r2l);
-  const remote = new Session(rr, rw, {
-    say(): Promise<unknown> {
-      return Promise.resolve("Hello");
-    },
-  });
+Deno.test({
+  name: "Session is disposable",
+  fn: async () => {
+    const l2r: Uint8Array[] = []; // Local to Remote
+    const r2l: Uint8Array[] = []; // Remote to Local
+    const lr = new Reader(r2l);
+    const lw = new Writer(l2r);
+    const local = new Session(lr, lw);
+    const rr = new Reader(l2r);
+    const rw = new Writer(r2l);
+    const remote = new Session(rr, rw, {
+      say(): Promise<unknown> {
+        return Promise.resolve("Hello");
+      },
+    });
 
-  await using(local, async (local) => {
-    // Session is not closed
-    assertEquals(await local.call("say"), "Hello");
-  });
-  // Session is closed by `dispose`
-  await assertThrowsAsync(async () => {
-    await local.call("say");
-  }, SessionClosedError);
-  // Close
-  lr.close();
-  rr.close();
-  await Promise.all([
-    local.waitClosed(),
-    remote.waitClosed(),
-  ]);
+    await using(local, async (local) => {
+      // Session is not closed
+      assertEquals(await local.call("say"), "Hello");
+    });
+    // Session is closed by `dispose`
+    await assertThrowsAsync(async () => {
+      await local.call("say");
+    }, SessionClosedError);
+    // Close
+    lr.close();
+    rr.close();
+    await Promise.all([
+      local.waitClosed(),
+      remote.waitClosed(),
+    ]);
+  },
+  sanitizeResources: false,
 });
