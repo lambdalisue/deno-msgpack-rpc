@@ -244,6 +244,7 @@ Deno.test({
     await session.waitClosed();
   },
   sanitizeResources: false,
+  sanitizeOps: false,
 });
 
 Deno.test({
@@ -279,4 +280,5 @@ Deno.test({
     ]);
   },
   sanitizeResources: false,
+  sanitizeOps: false,
 });
