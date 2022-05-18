@@ -108,7 +108,7 @@ export class Session implements Disposable {
         result = await this.dispatch(method, ...params);
       } catch (e) {
         // Use string representation to send the error through msgpack
-        error = e.stack ?? e.toString();
+        error = e?.stack ?? `${e}`;
       }
       return [result, error];
     })();

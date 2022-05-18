@@ -282,3 +282,93 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 });
+
+Deno.test({
+  name: "Session.call() throws Error if Remote throws an error",
+  fn: async () => {
+    const l2r: Uint8Array[] = []; // Local to Remote
+    const r2l: Uint8Array[] = []; // Remote to Local
+    const lr = new Reader(r2l);
+    const lw = new Writer(l2r);
+    const local = new Session(lr, lw);
+    const rr = new Reader(l2r);
+    const rw = new Writer(r2l);
+    const remote = new Session(rr, rw, {
+      say(): Promise<unknown> {
+        return Promise.reject(new Error("Panic!"));
+      },
+    });
+    await assertThrowsAsync(async () => {
+      await local.call("say");
+    }, Error, "Failed to call 'say' with []: Error: Panic!");
+    // Close
+    lr.close();
+    rr.close();
+    await Promise.all([
+      local.waitClosed(),
+      remote.waitClosed(),
+    ]);
+  },
+  sanitizeResources: false,
+  sanitizeOps: false,
+});
+
+Deno.test({
+  name: "Session.call() throws Error if Remote throws a string",
+  fn: async () => {
+    const l2r: Uint8Array[] = []; // Local to Remote
+    const r2l: Uint8Array[] = []; // Remote to Local
+    const lr = new Reader(r2l);
+    const lw = new Writer(l2r);
+    const local = new Session(lr, lw);
+    const rr = new Reader(l2r);
+    const rw = new Writer(r2l);
+    const remote = new Session(rr, rw, {
+      say(): Promise<unknown> {
+        return Promise.reject("Panic!");
+      },
+    });
+    await assertThrowsAsync(async () => {
+      await local.call("say");
+    }, Error, "Failed to call 'say' with []: Panic!");
+    // Close
+    lr.close();
+    rr.close();
+    await Promise.all([
+      local.waitClosed(),
+      remote.waitClosed(),
+    ]);
+  },
+  sanitizeResources: false,
+  sanitizeOps: false,
+});
+
+Deno.test({
+  name: "Session.call() throws Error if Remote throws null",
+  fn: async () => {
+    const l2r: Uint8Array[] = []; // Local to Remote
+    const r2l: Uint8Array[] = []; // Remote to Local
+    const lr = new Reader(r2l);
+    const lw = new Writer(l2r);
+    const local = new Session(lr, lw);
+    const rr = new Reader(l2r);
+    const rw = new Writer(r2l);
+    const remote = new Session(rr, rw, {
+      say(): Promise<unknown> {
+        return Promise.reject(null);
+      },
+    });
+    await assertThrowsAsync(async () => {
+      await local.call("say");
+    }, Error, "Failed to call 'say' with []: null");
+    // Close
+    lr.close();
+    rr.close();
+    await Promise.all([
+      local.waitClosed(),
+      remote.waitClosed(),
+    ]);
+  },
+  sanitizeResources: false,
+  sanitizeOps: false,
+});
