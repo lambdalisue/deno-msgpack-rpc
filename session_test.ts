@@ -298,9 +298,13 @@ Deno.test({
         return Promise.reject(new Error("Panic!"));
       },
     });
-    await assertThrowsAsync(async () => {
-      await local.call("say");
-    }, Error, "Failed to call 'say' with []: Error: Panic!");
+    await assertThrowsAsync(
+      async () => {
+        await local.call("say");
+      },
+      Error,
+      "Failed to call 'say' with []: Error: Panic!",
+    );
     // Close
     lr.close();
     rr.close();
@@ -328,9 +332,13 @@ Deno.test({
         return Promise.reject("Panic!");
       },
     });
-    await assertThrowsAsync(async () => {
-      await local.call("say");
-    }, Error, "Failed to call 'say' with []: Panic!");
+    await assertThrowsAsync(
+      async () => {
+        await local.call("say");
+      },
+      Error,
+      "Failed to call 'say' with []: Panic!",
+    );
     // Close
     lr.close();
     rr.close();
@@ -358,9 +366,13 @@ Deno.test({
         return Promise.reject(null);
       },
     });
-    await assertThrowsAsync(async () => {
-      await local.call("say");
-    }, Error, "Failed to call 'say' with []: null");
+    await assertThrowsAsync(
+      async () => {
+        await local.call("say");
+      },
+      Error,
+      "Failed to call 'say' with []: null",
+    );
     // Close
     lr.close();
     rr.close();
