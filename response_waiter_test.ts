@@ -1,4 +1,4 @@
-import { assertEquals, assertThrowsAsync } from "./deps_test.ts";
+import { assertEquals, assertRejects } from "./deps_test.ts";
 import { MessageId, ResponseMessage } from "./message.ts";
 import { ResponseWaiter, TimeoutError } from "./response_waiter.ts";
 
@@ -30,7 +30,7 @@ Deno.test({
   fn: async () => {
     const msgid: MessageId = 0;
     const waiter = new ResponseWaiter();
-    await assertThrowsAsync(async () => {
+    await assertRejects(async () => {
       const promise = waiter.wait(msgid, 1);
       assertEquals(waiter.waiterCount, 1);
       await promise;

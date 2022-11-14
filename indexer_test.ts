@@ -18,5 +18,5 @@ Deno.test("Indexer with 'max' works as expect", () => {
 });
 
 Deno.test("Indexer with 'max' smaller than 2 throws error", () => {
-  assertThrows(() => new Indexer(1), undefined, "must be greater than 1");
+  assertThrows(() => new Indexer(1), Error, "must be greater than 1");
 });
