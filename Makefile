@@ -20,7 +20,7 @@ type-check: FORCE	## Type check
 	@deno test --no-run ${TARGETS}
 
 test: FORCE	## Test
-	@deno test -A --no-check --parallel
+	@deno test -A --no-check
 
 deps: FORCE	## Update dependencies
 	@deno run -A https://deno.land/x/udd@0.7.2/main.ts ${TARGETS}
