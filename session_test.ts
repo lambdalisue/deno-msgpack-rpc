@@ -1,5 +1,5 @@
-import { io } from "./deps.ts";
-import { assertEquals, assertThrowsAsync, delay, using } from "./deps_test.ts";
+import { streams } from "./deps.ts";
+import { assertEquals, assertRejects, delay, using } from "./deps_test.ts";
 import { Session, SessionClosedError } from "./session.ts";
 
 class Reader implements Deno.Reader, Deno.Closer {
@@ -67,9 +67,9 @@ Deno.test("Make sure that Reader/Writer for tests works properly", async () => {
   const r = new Reader(q);
   const w = new Writer(q);
   const d = (new TextEncoder()).encode(buildMassiveData());
-  await io.writeAll(w, d);
+  await streams.writeAll(w, d);
   r.close();
-  assertEquals(await io.readAll(r), d);
+  assertEquals(await streams.readAll(r), d);
 });
 
 Deno.test("Local can call Remote method", async () => {
@@ -219,7 +219,7 @@ Deno.test({
     const writer = new Writer(buffer);
     const session = new Session(reader, writer);
     session.close();
-    await assertThrowsAsync(async () => {
+    await assertRejects(async () => {
       await session.call("say");
     }, SessionClosedError);
     reader.close();
@@ -237,7 +237,7 @@ Deno.test({
     const writer = new Writer(buffer);
     const session = new Session(reader, writer);
     session.close();
-    await assertThrowsAsync(async () => {
+    await assertRejects(async () => {
       await session.notify("say");
     }, SessionClosedError);
     reader.close();
@@ -268,7 +268,7 @@ Deno.test({
       assertEquals(await local.call("say"), "Hello");
     });
     // Session is closed by `dispose`
-    await assertThrowsAsync(async () => {
+    await assertRejects(async () => {
       await local.call("say");
     }, SessionClosedError);
     // Close
@@ -298,7 +298,7 @@ Deno.test({
         return Promise.reject(new Error("Panic!"));
       },
     });
-    await assertThrowsAsync(
+    await assertRejects(
       async () => {
         await local.call("say");
       },
@@ -332,7 +332,7 @@ Deno.test({
         return Promise.reject("Panic!");
       },
     });
-    await assertThrowsAsync(
+    await assertRejects(
       async () => {
         await local.call("say");
       },
@@ -366,7 +366,7 @@ Deno.test({
         return Promise.reject(null);
       },
     });
-    await assertThrowsAsync(
+    await assertRejects(
       async () => {
         await local.call("say");
       },

@@ -4,7 +4,7 @@ import {
   deferred,
   Disposable,
   encode,
-  io,
+  streams,
 } from "./deps.ts";
 import * as message from "./message.ts";
 import { Indexer } from "./indexer.ts";
@@ -83,7 +83,7 @@ export class Session implements Disposable {
   }
 
   private async send(data: Uint8Array): Promise<void> {
-    await io.writeAll(this.#writer, data);
+    await streams.writeAll(this.#writer, data);
   }
 
   private async dispatch(
@@ -134,7 +134,7 @@ export class Session implements Disposable {
   }
 
   private async listen(): Promise<void> {
-    const iter = decodeStream(io.iter(this.#reader));
+    const iter = decodeStream(streams.iterateReader(this.#reader));
     try {
       while (!this.#closed) {
         const { done, value } = await Promise.race([
