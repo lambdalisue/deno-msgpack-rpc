@@ -23,7 +23,7 @@ const dispatcher: Dispatcher = {
 };
 
 async function establishSession(conn: Deno.Conn) {
-  await using(new Session(conn, conn, dispatcher), async (server) => {
+  using(new Session(conn, conn, dispatcher), async (server) => {
     console.log("Session has connected");
     console.log(await server.call("helloServer", "Alice"));
     console.log(await server.call("helloClient", "Alice"));
