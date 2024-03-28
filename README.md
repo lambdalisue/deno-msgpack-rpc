@@ -45,7 +45,7 @@ const dispatcher: Dispatcher = {
 };
 
 async function establishSession(conn: Deno.Conn) {
-  await using(new Session(conn, conn, dispatcher), async (server) => {
+  using(new Session(conn, conn, dispatcher), async (server) => {
     console.log("Session has connected");
     console.log(await server.call("helloServer", "Alice"));
     console.log(await server.call("helloClient", "Alice"));
@@ -88,7 +88,7 @@ const dispatcher: Dispatcher = {
 try {
   console.log(`Connect to MessagePack-RPC server (${hostname}:${port})`);
   const conn = await Deno.connect({ hostname, port });
-  await using(new Session(conn, conn, dispatcher), async (client) => {
+  using(new Session(conn, conn, dispatcher), async (client) => {
     console.log(await client.call("sum", 1, 1));
     console.log(await client.call("helloServer", "Bob"));
     console.log(await client.call("helloClient", "Bob"));
