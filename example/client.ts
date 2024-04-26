@@ -18,7 +18,7 @@ const dispatcher: Dispatcher = {
 try {
   console.log(`Connect to MessagePack-RPC server (${hostname}:${port})`);
   const conn = await Deno.connect({ hostname, port });
-  await using(new Session(conn, conn, dispatcher), async (client) => {
+  using(new Session(conn, conn, dispatcher), async (client) => {
     console.log(await client.call("sum", 1, 1));
     console.log(await client.call("helloServer", "Bob"));
     console.log(await client.call("helloClient", "Bob"));
