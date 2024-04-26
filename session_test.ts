@@ -263,7 +263,7 @@ Deno.test({
       },
     });
 
-    await using(local, async (local) => {
+    using(local, async (local) => {
       // Session is not closed
       assertEquals(await local.call("say"), "Hello");
     });
