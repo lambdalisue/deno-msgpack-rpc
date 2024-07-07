@@ -4,6 +4,11 @@
 [![deno doc](https://doc.deno.land/badge.svg)](https://doc.deno.land/https/deno.land/x/msgpack_rpc/mod.ts)
 [![Test](https://github.com/lambdalisue/deno-msgpack-rpc/workflows/Test/badge.svg)](https://github.com/lambdalisue/deno-msgpack-rpc/actions?query=workflow%3ATest)
 
+> [!WARNING]
+>
+> This module is for deprecated `Deno.Reader`, `Deno.Writer`, and `Deno.Closer`.
+> Use [deno-messagepack-rpc](https://github.com/lambdalisue/deno-messagepack-rpc) instead for Web standard Streams APIs.
+
 [Deno][deno] module to support [msgpack-rpc][msgpack-rpc] by using
 [msgpack-deno][msgpack-deno].
 
